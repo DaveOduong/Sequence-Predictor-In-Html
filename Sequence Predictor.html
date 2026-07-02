@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sequence Pattern Predictor</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            max-width: 500px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: #111827;
+            text-align: center;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        button {
+            width: 100%;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        #result {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        .error {
+            color: #dc2626;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Sequence Predictor</h1>
+    
+    <label for="numbers">Enter your sequence (separated by spaces or commas):</label>
+    <input type="text" id="numbers" placeholder="e.g., 2, 4, 8, 16" value="2, 4, 8, 16">
+    
+    <button onclick="predict()">Analyze & Predict</button>
+    
+    <div id="result"></div>
+</div>
+
+<script>
+// --- UTILITY FUNCTIONS ---
+function getNumbers() {
+    const inputEl = document.getElementById("numbers");
+    if (!inputEl) return [];
+    return inputEl.value
+        .split(/[\s,]+/)
+        .map(Number)
+        .filter(n => !isNaN(n));
+}
+
+function isPrime(n) {
+    if (n < 2 || !Number.isInteger(n)) return false;
+    for (let i = 2; i <= Math.sqrt(n); i++) {
+        if (n % i === 0) return false;
+    }
+    return true;
+}
+
+// --- PATTERN REGISTRY ---
+const patterns = [
+    {
+        name: "Constant",
+        confidence: 100,
+        match: (nums) => nums.every(x => x === nums[0]),
+        predict: (nums) => [nums[0], nums[0], nums[0]]
+    },
+    {
+        name: "Arithmetic",
+        confidence: 100,
+        match: (nums) => {
+            const d = nums[1] - nums[0];
+            return nums.every((v, i) => i < 1 || v - nums[i - 1] === d);
+        },
+        predict: (nums) => {
+            const d = nums[1] - nums[0];
+            const last = nums.at(-1);
+            return [last + d, last + 2 * d, last + 3 * d];
+        }
+    },
+    {
+        name: "Geometric",
+        confidence: 100,
+        match: (nums) => {
+            if (nums.length < 2) return false;
+            const r = nums[1] / nums[0];
+            if (isNaN(r) || !isFinite(r)) return false;
+            for (let i = 1; i < nums.length; i++) {
+                if (nums[i - 1] === 0 && nums[i] !== 0) return false;
+                if (nums[i - 1] !== 0 && (nums[i] / nums[i - 1] !== r)) return false;
+            }
+            return true;
+        },
+        predict: (nums) => {
+            const r = nums[1] / nums[0];
+            let last = nums.at(-1);
+            return Array.from({ length: 3 }, () => last *= r);
+        }
+    },
+    {
+        name: "Fibonacci",
+        confidence: 100,
+        match: (nums) => {
+            if (nums.length < 3) return false;
+            for (let i = 2; i < nums.length; i++) {
+                if (nums[i] !== nums[i - 1] + nums[i - 2]) return false;
+            }
+            return true;
+        },
+        predict: (nums) => {
+            let a = nums.at(-2), b = nums.at(-1);
+            return Array.from({ length: 3 }, () => {
+                let c = a + b;
+                a = b; b = c;
+                return c;
+            });
+        }
+    },
+    {
+        name: "Perfect Squares",
+        confidence: 100,
+        match: (nums) => nums.every(x => x >= 0 && Number.isInteger(Math.sqrt(x))),
+        predict: (nums) => {
+            const roots = nums.map(Math.sqrt);
+            const rLast = roots.at(-1);
+            const rDiff = roots.length > 1 ? roots[1] - roots[0] : 1;
+            return [1, 2, 3].map(i => (rLast + i * rDiff) ** 2);
+        }
+    },
+    {
+        name: "Perfect Cubes",
+        confidence: 100,
+        match: (nums) => nums.every(x => Math.abs(Math.cbrt(x) - Math.round(Math.cbrt(x))) < 1e-10),
+        predict: (nums) => {
+            const roots = nums.map(x => Math.round(Math.cbrt(x)));
+            const rLast = roots.at(-1);
+            const rDiff = roots.length > 1 ? roots[1] - roots[0] : 1;
+            return [1, 2, 3].map(i => (rLast + i * rDiff) ** 3);
+        }
+    },
+    {
+        name: "Triangular Numbers",
+        confidence: 100,
+        match: (nums) => nums.every(x => {
+            if (x < 0) return false;
+            const n = Math.floor((Math.sqrt(8 * x + 1) - 1) / 2);
+            return n * (n + 1) / 2 === x;
+        }),
+        predict: (nums) => {
+            const getIdx = x => Math.floor((Math.sqrt(8 * x + 1) - 1) / 2);
+            const nLast = getIdx(nums.at(-1));
+            const nDiff = nums.length > 1 ? getIdx(nums[1]) - getIdx(nums[0]) : 1;
+            return [1, 2, 3].map(i => {
+                const x = nLast + (i * nDiff);
+                return (x * (x + 1)) / 2;
+            });
+        }
+    },
+    {
+        name: "Prime Numbers",
+        confidence: 95,
+        match: (nums) => nums.every(isPrime),
+        predict: (nums) => {
+            const next = [];
+            let p = nums.at(-1);
+            while (next.length < 3) {
+                p++;
+                if (isPrime(p)) next.push(p);
+            }
+            return next;
+        }
+    },
+    {
+        name: "Quadratic Sequence",
+        confidence: 90,
+        match: (nums) => {
+            if (nums.length < 4) return false;
+            const diff = nums.slice(1).map((v, i) => v - nums[i]);
+            const second = diff.slice(1).map((v, i) => v - diff[i]);
+            return second.every(x => x === second[0]);
+        },
+        predict: (nums) => {
+            const diff = nums.slice(1).map((v, i) => v - nums[i]);
+            let d = diff.at(-1);
+            let s = diff[1] - diff[0];
+            let last = nums.at(-1);
+            return Array.from({ length: 3 }, () => {
+                d += s;
+                last += d;
+                return last;
+            });
+        }
+    },
+    {
+        name: "Alternating Arithmetic",
+        confidence: 90,
+        match: (nums) => {
+            if (nums.length < 6) return false;
+            const odd = nums.filter((_, i) => i % 2 === 0);
+            const even = nums.filter((_, i) => i % 2 !== 0);
+            const d1 = odd[1] - odd[0];
+            const d2 = even[1] - even[0];
+            return odd.every((v, i) => i < 1 || v - odd[i - 1] === d1) &&
+                   even.every((v, i) => i < 1 || v - even[i - 1] === d2);
+        },
+        predict: (nums) => {
+            const odd = nums.filter((_, i) => i % 2 === 0);
+            const even = nums.filter((_, i) => i % 2 !== 0);
+            const d1 = odd[1] - odd[0];
+            const d2 = even[1] - even[0];
+            
+            let lastIsEven = (nums.length % 2 === 0);
+            let nextD1 = odd.at(-1);
+            let nextD2 = even.at(-1);
+            const next = [];
+
+            for (let i = 1; i <= 3; i++) {
+                if ((lastIsEven && i % 2 !== 0) || (!lastIsEven && i % 2 === 0)) {
+                    nextD1 += d1;
+                    next.push(nextD1);
+                } else {
+                    nextD2 += d2;
+                    next.push(nextD2);
+                }
+            }
+            return next;
+        }
+    }
+];
+
+// --- MAIN EXECUTION HANDLER ---
+function predict() {
+    const resultEl = document.getElementById("result");
+    if (!resultEl) return;
+    
+    const nums = getNumbers();
+
+    if (nums.length < 2) {
+        resultEl.innerHTML = "<p class='error'>Enter at least 2 numbers.</p>";
+        return;
+    }
+
+    const matchedPattern = patterns.find(p => p.match(nums));
+
+    if (!matchedPattern) {
+        resultEl.innerHTML = 
+            "<h3>No exact pattern detected.</h3>" +
+            "<p style='color: #6b7280; font-size: 0.875rem;'>Try entering a longer historical pattern sequence (at least 5 or 6 numbers).</p>";
+        return;
+    }
+
+    const nextNumbers = matchedPattern.predict(nums);
+
+    resultEl.innerHTML = `
+        <h3 style="margin-top:0; margin-bottom:0.5rem; color:#4b5563; font-size:0.875rem; text-transform:uppercase; letter-spacing:0.05em;">Detected Pattern</h3>
+        <strong style="font-size:1.25rem; color:#111827;">${matchedPattern.name}</strong>
+        <p style="margin: 0.5rem 0 1rem 0; font-size:0.875rem; color:#6b7280;">Confidence Level: <b>${matchedPattern.confidence}%</b></p>
+        <h4 style="margin-bottom:0.25rem; color:#4b5563;">Next 3 Numbers:</h4>
+        <h2 style="color:#2563eb; margin:0; font-size:1.75rem; letter-spacing: 0.05em;">
+            ${nextNumbers.join(" , ")}
+        </h2>
+    `;
+}
+
+// Initial calculation placeholder logic run
+predict();
+</script>
+
+</body>
+</html>
