@@ -22,7 +22,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             width: 100%;
-            max-width: 500px;
+            max-width: 560px;
         }
         h1 {
             font-size: 1.5rem;
@@ -34,24 +34,59 @@
         label {
             display: block;
             font-weight: 600;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             font-size: 0.875rem;
         }
-        input[type="text"] {
-            width: 100%;
-            padding: 0.75rem;
+
+        #boxRow {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .num-slot {
+            position: relative;
+        }
+
+        .num-box {
+            width: 64px;
+            padding: 0.65rem 0.5rem;
             border: 1px solid #d1d5db;
             border-radius: 6px;
             box-sizing: border-box;
             font-size: 1rem;
-            margin-bottom: 1rem;
+            text-align: center;
         }
-        input[type="text"]:focus {
+        .num-box:focus {
             outline: none;
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
-        button {
+
+        .remove-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 18px;
+            height: 18px;
+            line-height: 16px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: white;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .remove-btn:hover {
+            background: #dc2626;
+        }
+
+        button#predictBtn {
             width: 100%;
             background-color: #2563eb;
             color: white;
@@ -63,7 +98,7 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        button:hover {
+        button#predictBtn:hover {
             background-color: #1d4ed8;
         }
         #result {
@@ -81,26 +116,110 @@
 
 <div class="container">
     <h1>Sequence Predictor</h1>
-    
-    <label for="numbers">Enter your sequence (separated by spaces or commas):</label>
-    <input type="text" id="numbers" placeholder="e.g., 2, 4, 8, 16" value="2, 4, 8, 16">
-    
-    <button onclick="predict()">Analyze & Predict</button>
-    
+
+    <label>Enter your sequence, one number per box:</label>
+    <div id="boxRow"></div>
+
+    <button id="predictBtn" onclick="predict()">Analyze & Predict</button>
+
     <div id="result"></div>
 </div>
 
 <script>
-// --- UTILITY FUNCTIONS ---
+// --- DYNAMIC INPUT BOXES ---
+const boxRow = document.getElementById("boxRow");
+let slotCounter = 0; // ever-increasing id source, so keys never collide even after deletions
+
+function createSlot(prefillValue) {
+    const id = slotCounter++;
+    const slot = document.createElement("div");
+    slot.className = "num-slot";
+    slot.dataset.slotId = id;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.className = "num-box";
+    input.autocomplete = "off";
+    if (prefillValue !== undefined) input.value = prefillValue;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-btn";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Remove this box");
+    removeBtn.onclick = () => removeSlot(slot);
+
+    slot.appendChild(input);
+    slot.appendChild(removeBtn);
+
+    input.addEventListener("input", () => handleBoxInput(slot, input));
+    input.addEventListener("keydown", (e) => handleKeydown(e, slot, input));
+
+    return slot;
+}
+
+function isLastSlot(slot) {
+    return slot === boxRow.lastElementChild;
+}
+
+function handleBoxInput(slot, input) {
+    // The moment the LAST box gets any content, spawn a fresh empty box after it.
+    // Non-last boxes never spawn anything on input - only the trailing slot does.
+    if (isLastSlot(slot) && input.value.trim() !== "") {
+        boxRow.appendChild(createSlot());
+    }
+}
+
+function handleKeydown(e, slot, input) {
+    // Backspace on an empty box (that isn't the sole/trailing box) jumps focus
+    // back and removes that box, similar to how tag-input UIs behave.
+    if (e.key === "Backspace" && input.value === "") {
+        const prev = slot.previousElementSibling;
+        if (prev && !isLastSlot(slot)) {
+            e.preventDefault();
+            removeSlot(slot);
+            const prevInput = prev.querySelector("input");
+            prevInput.focus();
+            prevInput.setSelectionRange(prevInput.value.length, prevInput.value.length);
+        }
+    }
+}
+
+function removeSlot(slot) {
+    // Invariant to protect: there must always be exactly one trailing empty box.
+    // So the trailing box itself can never be removed via the × button, and we
+    // never let the row drop to zero boxes.
+    if (isLastSlot(slot)) return;
+    if (boxRow.children.length <= 1) return;
+
+    const wasFocused = slot.querySelector("input") === document.activeElement;
+    slot.remove();
+
+    if (wasFocused) {
+        const last = boxRow.lastElementChild;
+        if (last) last.querySelector("input").focus();
+    }
+}
+
 function getNumbers() {
-    const inputEl = document.getElementById("numbers");
-    if (!inputEl) return [];
-    return inputEl.value
-        .split(/[\s,]+/)
+    const inputs = Array.from(boxRow.querySelectorAll(".num-box"));
+    return inputs
+        .map(inp => inp.value.trim())
+        .filter(v => v !== "")
         .map(Number)
         .filter(n => !isNaN(n));
 }
 
+function initBoxes() {
+    boxRow.innerHTML = "";
+    slotCounter = 0;
+    // "Obviously start with 2" - two empty boxes to begin.
+    boxRow.appendChild(createSlot());
+    boxRow.appendChild(createSlot());
+}
+
+// --- PREDICTION LOGIC (unchanged) ---
 function isPrime(n) {
     if (n < 2 || !Number.isInteger(n)) return false;
     for (let i = 2; i <= Math.sqrt(n); i++) {
@@ -109,7 +228,6 @@ function isPrime(n) {
     return true;
 }
 
-// --- PATTERN REGISTRY ---
 const patterns = [
     {
         name: "Constant",
@@ -260,7 +378,7 @@ const patterns = [
             const even = nums.filter((_, i) => i % 2 !== 0);
             const d1 = odd[1] - odd[0];
             const d2 = even[1] - even[0];
-            
+
             let lastIsEven = (nums.length % 2 === 0);
             let nextD1 = odd.at(-1);
             let nextD2 = even.at(-1);
@@ -284,7 +402,7 @@ const patterns = [
 function predict() {
     const resultEl = document.getElementById("result");
     if (!resultEl) return;
-    
+
     const nums = getNumbers();
 
     if (nums.length < 2) {
@@ -295,7 +413,7 @@ function predict() {
     const matchedPattern = patterns.find(p => p.match(nums));
 
     if (!matchedPattern) {
-        resultEl.innerHTML = 
+        resultEl.innerHTML =
             "<h3>No exact pattern detected.</h3>" +
             "<p style='color: #6b7280; font-size: 0.875rem;'>Try entering a longer historical pattern sequence (at least 5 or 6 numbers).</p>";
         return;
@@ -314,8 +432,7 @@ function predict() {
     `;
 }
 
-// Initial calculation placeholder logic run
-predict();
+initBoxes();
 </script>
 
 </body>
