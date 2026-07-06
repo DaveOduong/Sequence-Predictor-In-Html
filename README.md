@@ -1,4 +1,4 @@
-# 🔢 Sequence Pattern Predictor
+# Sequence Pattern Predictor
 
 A web-based application that analyzes numerical sequences, identifies common mathematical patterns, and predicts the next three numbers. The tool supports dynamic input boxes, multiple sequence detection algorithms, and confidence scoring, making it useful for students, educators, and anyone interested in number patterns.
 
@@ -6,14 +6,14 @@ A web-based application that analyzes numerical sequences, identifies common mat
 
 ## Features
 
-- 🔢 Dynamic input fields that expand automatically
-- ❌ Remove individual numbers with a single click
-- 🧠 Automatic pattern recognition
-- 📈 Predicts the next three numbers
-- 📊 Confidence score for each prediction
-- ⚡ Instant analysis with no page reload
-- 📱 Responsive, modern interface
-- 🚫 Detects when no known pattern exists
+-  Dynamic input fields that expand automatically
+-  Remove individual numbers with a single click
+-  Automatic pattern recognition
+-  Predicts the next three numbers
+-  Confidence score for each prediction
+-  Instant analysis with no page reload
+-  Responsive, modern interface
+-  Detects when no known pattern exists
 
 ---
 
